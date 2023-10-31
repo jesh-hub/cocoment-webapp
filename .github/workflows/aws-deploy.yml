@@ -1,0 +1,39 @@
+name: Build and Deploy CoComent web resource into AWS
+# https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+run-name: on ${{ github.event_name }} ${{ github.ref_name }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'master'
+
+jobs:
+  build_deploy:
+    name: Build and Deploy
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          # https://github.com/actions/setup-node#caching-global-packages-data
+          cache: 'npm'
+      - name: Install Dependencies
+        run: npm ci # lock 파일 write 권한이 없는 명령어. `yarn install --frozen-lockfile`와 같다.
+      - name: Build
+        run: npm run build
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        # https://github.com/aws-actions/configure-aws-credentials/blob/main/action.yml
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+      - name: Copy files to the AWS S3 with the AWS CLI
+        # https://awscli.amazonaws.com/v2/documentation/api/latest/reference/s3/index.html
+        run: |
+          aws s3 sync ./dist s3://cocoment-webapp --delete
