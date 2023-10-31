@@ -5,11 +5,9 @@ function LoginApp() {
   const outerHeight = useResizeHandler(() => window.innerHeight);
 
   const selectProvider = async (provider: string) => {
-    if (window.opener !== null) {
-      const origin =
-        import.meta.env.VITE_APP_OPENER_ORIGIN || window.location.origin;
-      window.opener.postMessage({ provider }, origin);
-    }
+    if (window.opener !== null)
+      // 중요한 정보를 주고받지 말자. 정확한 uri를 target origin으로 설정할 수 없는 상황이다.
+      window.opener.postMessage({ provider }, '*');
     window.close();
   };
 
