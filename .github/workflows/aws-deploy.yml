@@ -4,6 +4,9 @@ run-name: on ${{ github.event_name }} ${{ github.ref_name }} by @${{ github.acto
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - 'master'
   push:
     branches:
       - 'master'
@@ -14,18 +17,33 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Define deploy environment
+        id: env
+        # output 설정 방법: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#example-of-setting-an-output-parameter
+        # default env 변수 목록: https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
+        run: |
+          if [[ $GITHUB_EVENT_NAME == 'push' ]]; then
+            echo "mode=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=development" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
           # https://github.com/actions/setup-node#caching-global-packages-data
           cache: 'npm'
-      - name: Install Dependencies
-        run: npm ci # lock 파일 write 권한이 없는 명령어. `yarn install --frozen-lockfile`와 같다.
-      - name: Build
-        run: npm run build
+
+      - name: Install dependencies and Build
+        # `npm ci` 명령은 lock 파일 write 권한이 없는 명령어. `yarn install --frozen-lockfile`와 같다.
+        run: |
+          npm ci
+          npm run build:${{steps.env.outputs.mode}}
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         # https://github.com/aws-actions/configure-aws-credentials/blob/main/action.yml
@@ -33,7 +51,14 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
+
       - name: Copy files to the AWS S3 with the AWS CLI
         # https://awscli.amazonaws.com/v2/documentation/api/latest/reference/s3/index.html
         run: |
-          aws s3 sync ./dist s3://cocoment-webapp --delete
+          aws s3 sync ./dist s3://cocoment-webapp/${{steps.env.outputs.mode}} --delete
+
+      - name: Create Cache Invalidation
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets[steps.env.outputs.mode] }} \
+            --paths "/*"
