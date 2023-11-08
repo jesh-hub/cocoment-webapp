@@ -1,14 +1,14 @@
 import { Google } from 'src/components/Icons';
-import { useResizeHandler } from 'src/hooks/useResizeHandler';
+import useOpener from 'src/hooks/useOpener';
+import useResizeHandler from 'src/hooks/useResizeHandler';
 
 function LoginApp() {
   const outerHeight = useResizeHandler(() => window.innerHeight);
+  const { close, postMessage } = useOpener();
 
-  const selectProvider = async (provider: string) => {
-    if (window.opener !== null)
-      // 중요한 정보를 주고받지 말자. 정확한 uri를 target origin으로 설정할 수 없는 상황이다.
-      window.opener.postMessage({ provider }, '*');
-    window.close();
+  const selectProvider = (provider: string) => {
+    postMessage({ provider });
+    close();
   };
 
   return (

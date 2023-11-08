@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export const useResizeHandler = <T>(action: () => T) => {
+const useResizeHandler = <T>(action: () => T) => {
   const [target, setTarget] = useState<T>(action());
   const resizeTimeoutId = useRef<NodeJS.Timeout>();
 
@@ -20,3 +20,5 @@ export const useResizeHandler = <T>(action: () => T) => {
 
   return target;
 };
+
+export default useResizeHandler;
