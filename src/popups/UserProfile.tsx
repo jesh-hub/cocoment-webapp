@@ -2,41 +2,54 @@ import { useEffect, useState } from 'react';
 import Avatar from 'src/components/Avatar';
 import Button from 'src/components/Button';
 import FormControl from 'src/components/FormControl';
+import useErrorHandler from 'src/hooks/useErrorHandler';
 import useOpener from 'src/hooks/useOpener';
 import useResizeHandler from 'src/hooks/useResizeHandler';
+import { alwaysResolver } from 'src/utils/resolver';
+import type { ChangeEvent } from 'react';
 
-function LoginApp() {
+function UserProfile() {
   const outerHeight = useResizeHandler(() => window.innerHeight);
 
   const { close, postMessage } = useOpener<{
     nickname?: string;
-  }>(({ nickname }) => {
+    avatarUrl?: string;
+  }>(({ nickname, avatarUrl }) => {
     if (window.opener === null) return;
     setNickname(nickname || '');
+    setAvatarDataURL(avatarUrl || ''); // TODO 받은 그대로 요청하면 403
   });
+
   const [avatar, setAvatar] = useState<File>();
   const [avatarDataUrl, setAvatarDataURL] = useState<string>('');
   const [nickname, setNickname] = useState('');
 
-  const handleChangeAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // TODO 에러 처리
-    const [file] = e.target.files || [];
+  const avatarInvalid = useErrorHandler();
+  const nicknameInvalid = useErrorHandler();
 
-    if (file === undefined) throw new Error('파일을 다시 확인해주세요.');
-    if (!file.type.startsWith('image/'))
-      throw new Error('이미지 파일만 첨부할 수 있어요.');
+  const handleChangeAvatar = async (e: ChangeEvent<HTMLInputElement>) => {
+    const [_, error] = await alwaysResolver(async () => {
+      const [file] = e.target.files || [];
 
-    const reader = new FileReader();
-    await new Promise<void>((resolve, reject) => {
-      reader.onload = () => resolve();
-      reader.onerror = (event: ProgressEvent<FileReader>) => {
-        if (event.target?.error) reject(event.target.error);
-        else reject(new Error('첨부하신 이미지 파일을 처리할 수 없습니다.'));
-      };
-      reader.readAsDataURL(file);
+      if (file === undefined) throw new Error('파일을 다시 확인해주세요.');
+      if (!file.type.startsWith('image/'))
+        throw new Error('이미지 파일만 첨부할 수 있어요.');
+
+      const reader = new FileReader();
+      await new Promise<void>((resolve, reject) => {
+        reader.onload = () => resolve();
+        reader.onerror = (event: ProgressEvent<FileReader>) => {
+          if (event.target?.error) reject(event.target.error);
+          else reject(new Error('첨부하신 이미지 파일을 처리할 수 없습니다.'));
+        };
+        reader.readAsDataURL(file);
+      });
+
+      if (reader.result !== null) setAvatarDataURL(reader.result as string);
+      setAvatar(file);
     });
-    if (reader.result !== null) setAvatarDataURL(reader.result as string);
-    setAvatar(file);
+
+    if (error !== undefined) avatarInvalid.set(error.message);
   };
 
   useEffect(() => {
@@ -53,28 +66,27 @@ function LoginApp() {
           className="space-y-6"
           onSubmit={e => {
             e.preventDefault();
-            postMessage({ avatar, nickname });
-            close();
+            if (nickname !== '') {
+              avatarInvalid.reset();
+              nicknameInvalid.reset();
+              postMessage({ avatar, nickname });
+              close();
+            } else nicknameInvalid.set('닉네임은 빈 값일 수 없습니다.');
           }}
         >
           <div className="text-center">
             <Avatar dataUrl={avatarDataUrl} name={nickname} />
-            <div className="mt-2">
-              <label
-                htmlFor="avatar"
-                className="text-sm font-medium leading-6 text-gray-900 hover:cursor-pointer hover:text-gray-600"
-              >
-                사진 변경
-              </label>
-              <input
-                id="avatar"
-                name="avatar"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleChangeAvatar}
-              />
-            </div>
+            <FormControl
+              outer={children => <div className="mt-2">{children}</div>}
+              id="avatar"
+              type="file"
+              accept="image/*"
+              hidden
+              label="사진 변경"
+              invalid={avatarInvalid.invalid}
+              invalidMessage={avatarInvalid.message}
+              onChange={handleChangeAvatar}
+            />
           </div>
           <FormControl
             outer={children => <div className="space-y-2">{children}</div>}
@@ -82,6 +94,8 @@ function LoginApp() {
             type="text"
             label="닉네임"
             value={nickname}
+            invalid={nicknameInvalid.invalid}
+            invalidMessage={nicknameInvalid.message}
             onChange={({ target: { value } }) => setNickname(value)}
           />
           <div className="space-y-2">
@@ -98,4 +112,4 @@ function LoginApp() {
   );
 }
 
-export default LoginApp;
+export default UserProfile;
