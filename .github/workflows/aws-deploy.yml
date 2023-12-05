@@ -23,9 +23,9 @@ jobs:
         id: env
         with:
           script: |
-            if (context.eventName === 'workflow_dispatch' || context.ref.endsWith('-dev'))
-              core.exportVariable('mode', 'development');
-            else core.exportVariable('mode', 'production');
+            if (context.eventName !== 'push') return 'development';
+            if (context.ref.endsWith('-dev')) return 'development';
+            return 'production';
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,7 +41,7 @@ jobs:
         # `npm ci` 명령은 lock 파일 write 권한이 없는 명령어. `yarn install --frozen-lockfile`와 같다.
         run: |
           npm ci
-          npm run build:${{ steps.env.outputs.mode }}
+          npm run build:${{ steps.env.outputs.result }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,10 +54,10 @@ jobs:
       - name: Copy files to the AWS S3 with the AWS CLI
         # https://awscli.amazonaws.com/v2/documentation/api/latest/reference/s3/index.html
         run: |
-          aws s3 sync ./dist s3://cocoment-webapp/${{ steps.env.outputs.mode }} --delete
+          aws s3 sync ./dist s3://cocoment-webapp/${{ steps.env.outputs.result }} --delete
 
       - name: Create Cache Invalidation
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets[steps.env.outputs.mode] }} \
+            --distribution-id ${{ secrets[steps.env.outputs.result] }} \
             --paths "/*"
