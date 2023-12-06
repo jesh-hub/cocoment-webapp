@@ -1,31 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Avatar from 'src/components/Avatar';
 import Button from 'src/components/Button';
 import FormControl from 'src/components/FormControl';
 import useErrorHandler from 'src/hooks/useErrorHandler';
-import useOpener from 'src/hooks/useOpener';
+import useOpener, { close, postMessage } from 'src/hooks/useOpener';
 import useResizeHandler from 'src/hooks/useResizeHandler';
 import { alwaysResolver } from 'src/utils/resolver';
 import type { ChangeEvent } from 'react';
 
 function UserProfile() {
-  const outerHeight = useResizeHandler(() => window.innerHeight);
-
-  const { close, postMessage } = useOpener<{
-    nickname?: string;
-    avatarUrl?: string;
-  }>(({ nickname, avatarUrl }) => {
-    if (window.opener === null) return;
-    setNickname(nickname || '');
-    setAvatarDataURL(avatarUrl || ''); // TODO 받은 그대로 요청하면 403
-  });
+  const [_, outerHeight] = useResizeHandler();
 
   const [avatar, setAvatar] = useState<File>();
-  const [avatarDataUrl, setAvatarDataURL] = useState<string>('');
+  const [avatarDataUrl, setAvatarDataURL] = useState('');
   const [nickname, setNickname] = useState('');
 
   const avatarInvalid = useErrorHandler();
   const nicknameInvalid = useErrorHandler();
+
+  useOpener<{
+    url: string;
+    name: string;
+  }>(({ url, name }) => {
+    setAvatarDataURL(url);
+    setNickname(name);
+  });
 
   const handleChangeAvatar = async (e: ChangeEvent<HTMLInputElement>) => {
     const [_, error] = await alwaysResolver(async () => {
@@ -51,10 +50,6 @@ function UserProfile() {
 
     if (error !== undefined) avatarInvalid.set(error.message);
   };
-
-  useEffect(() => {
-    postMessage({ init: true });
-  }, []);
 
   return (
     <div

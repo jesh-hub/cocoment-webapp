@@ -1,24 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 
-const useResizeHandler = <T>(action: () => T) => {
-  const [target, setTarget] = useState<T>(action());
+const useResizeHandler = () => {
+  const [size, setSize] = useState([window.innerWidth, window.innerHeight]);
   const resizeTimeoutId = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     const handleResize = () => {
-      clearTimeout(resizeTimeoutId.current);
+      if (resizeTimeoutId.current !== undefined)
+        clearTimeout(resizeTimeoutId.current);
       resizeTimeoutId.current = setTimeout(() => {
-        setTarget(action());
+        setSize([window.innerWidth, window.innerHeight]);
         resizeTimeoutId.current = undefined;
       }, 300);
     };
 
-    setTarget(action());
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [action]);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimeoutId.current !== undefined) {
+        clearTimeout(resizeTimeoutId.current);
+        resizeTimeoutId.current = undefined;
+      }
+    };
+  }, []);
 
-  return target;
+  return size;
 };
 
 export default useResizeHandler;

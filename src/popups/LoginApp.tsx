@@ -1,10 +1,9 @@
 import { Google } from 'src/components/Icons';
-import useOpener from 'src/hooks/useOpener';
+import { close, postMessage } from 'src/hooks/useOpener';
 import useResizeHandler from 'src/hooks/useResizeHandler';
 
 function LoginApp() {
-  const outerHeight = useResizeHandler(() => window.innerHeight);
-  const { close, postMessage } = useOpener();
+  const [_, outerHeight] = useResizeHandler();
 
   const selectProvider = (provider: string) => {
     postMessage({ provider });
