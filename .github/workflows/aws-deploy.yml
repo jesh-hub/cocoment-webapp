@@ -4,6 +4,9 @@ run-name: on ${{ github.event_name }} ${{ github.ref_name }} by @${{ github.acto
 
 on:
   workflow_dispatch:
+#  pull_request:
+#    branches:
+#      - 'master'
   push:
     tags:
       - 'v\d+\.\d+\.\d+' # production
@@ -23,9 +26,10 @@ jobs:
         id: env
         with:
           script: |
-            if (context.eventName !== 'push') return 'development';
-            if (context.ref.endsWith('-dev')) return 'development';
-            return 'production';
+            const { ref, eventName } = context;
+            const isDevMode = ref.endsWith('-dev') || eventName !== 'push';
+            
+            core.setOutput('mode', isDevMode ? 'development' : 'production');
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,7 +45,7 @@ jobs:
         # `npm ci` 명령은 lock 파일 write 권한이 없는 명령어. `yarn install --frozen-lockfile`와 같다.
         run: |
           npm ci
-          npm run build:${{ steps.env.outputs.result }}
+          npm run build:${{ steps.env.outputs.mode }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,10 +58,10 @@ jobs:
       - name: Copy files to the AWS S3 with the AWS CLI
         # https://awscli.amazonaws.com/v2/documentation/api/latest/reference/s3/index.html
         run: |
-          aws s3 sync ./dist s3://cocoment-webapp/${{ steps.env.outputs.result }} --delete
+          aws s3 sync ./dist s3://cocoment-webapp/${{ steps.env.outputs.mode }} --delete
 
       - name: Create Cache Invalidation
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets[steps.env.outputs.result] }} \
+            --distribution-id ${{ secrets[steps.env.outputs.mode] }} \
             --paths "/*"
